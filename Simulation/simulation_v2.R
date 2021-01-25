@@ -75,7 +75,7 @@ registerDoParallel(cl)
 start.time <- Sys.time()
 
 
-for(cnt in 384:396){
+for(cnt in 389:396){
   #Get parameters of current run
   param_actual<-parameters[cnt,]
   n <- as.numeric(param_actual["n-samples"])
@@ -189,7 +189,7 @@ registerDoSEQ()
 
 end.time <- Sys.time()
 
-plot<-375
+plot<-386
 plot_df<-results[plot:(plot+10),]
 #Plot Error in dependece of lambda_outlier
 ggplot(data=plot_df)+geom_line(aes(x=`Outlier.shift`,y=krr_mean_mse,color="KRR"))+

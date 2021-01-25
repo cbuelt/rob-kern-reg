@@ -1,4 +1,3 @@
-library(shiny)
 library(readxl)
 library(ggplot2)
 library(dplyr)
@@ -8,7 +7,51 @@ library(rgl)
 library(hrbrthemes)
 
 setwd(dirname(rstudioapi::getSourceEditorContext()$path))
-data<-read_excel("results.xlsx")
+data<-read_excel("../data/simulation_results.xlsx")
+data_complexity<-read_excel("../data/complexity_results.xlsx")
+
+#Transform complexity
+data_c <- data_complexity %>%
+  select(`KRR`, `Huber`,`RKR`,`KGARD`,`n`) %>%
+  pivot_longer(., cols = c(`KRR`, `Huber`,`RKR`,`KGARD`),
+               names_to = "method", values_to = "time")
+
+fig <- plot_ly(data = data_c, x = ~n, y = ~time, color = ~method)
+fig %>% layout(yaxis = list(title="Time [s]"),
+               xaxis = list(title="n"),
+               legend = list(x=0.05,y=1,title=list(text='<b> Methods </b>')),
+               hovermode="compare")
+
+#Predict fits
+data_fit<-select(data_complexity,c(n,KRR,Huber,RKR,KGARD))
+data_pred<-tibble("n"=c(seq(50,3000,100),seq(4000,30000,1000)))
+models <- c("KRR","RKR","Huber","KGARD")
+for (model in models){
+  #Train models
+  d<-ifelse (model=="Huber", 2, 3)
+  formula <- paste(model,"~","poly(n,d,raw=TRUE)")
+  model_fit<-lm(formula, data=data_fit)
+  
+  #Predict new data
+  data_pred[ , ncol(data_pred) + 1] <- model_fit$coefficients[1] + 
+    tcrossprod(poly(data_pred$n,d,raw=TRUE),t(model_fit$coefficients[-1]))
+  #Rename
+  data_pred <- rename(data_pred, !!paste0(model):=V1)
+}
+data_pred
+data_pred <- data_pred %>%
+  pivot_longer(., cols = c(`KRR`, `Huber`,`RKR`,`KGARD`),
+               names_to = "method", values_to = "time_pred")
+
+
+fig <- plot_ly(data = data_c, x = ~n, y = ~time, type="scatter", mode ="markers", color=~method)
+fig <- fig %>% add_trace(data = data_pred, y =~ time_pred,type="scatter", mode ="lines", color=~method)
+fig
+
+n<-50
+model$coefficients[1]+model$coefficients[2]*n+model$coefficients[3]*n^2
+
+
 
 n_input=150
 p_input=1
@@ -56,6 +99,14 @@ ggplot(data=test,aes(x=`Shift`,y=`Val`,group=`Var`))+
 #Funktionierender plot
 fig <- plot_ly(test, x = ~`Shift`, y = ~`mean`, color = ~`method`,
                mode = "lines+markers")
+fig <- fig %>% layout(yaxis = list(title="MSE"), xaxis = list(title="Outlier shift"),
+                      legend = list(x=0.05,y=1,title=list(text='<b> Methods </b>')),
+                      hovermode="compare")
+fig
+
+#Plot mit error bars
+fig <- plot_ly(test_merged, x = ~`Shift`, y = ~`mean`, color = ~`method`,
+               mode = "lines+markers", error_y=~list(array=`SD`))
 fig <- fig %>% layout(yaxis = list(title="MSE"), xaxis = list(title="Outlier shift"),
                       legend = list(x=0.05,y=1,title=list(text='<b> Methods </b>')),
                       hovermode="compare")
@@ -134,3 +185,5 @@ plot_ly(data=threeD,x=threeD$Shift, y=threeD$gamma, z=threeD$Val, type="scatter3
 
 plot_ly(test2, y = ~Val, color = I("black"), 
         alpha = 0.1, boxpoints = "suspectedoutliers") %>% add_boxplot(x = "Overall")
+
+

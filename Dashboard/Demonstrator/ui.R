@@ -1,8 +1,16 @@
 library(shiny)
 library(shinydashboard)
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(plotly)
+library(rgl)
+library(hrbrthemes)
+library(viridis)
+library(tidyr)
 
 dashboardPage(
-    dashboardHeader(title="My Dashboard"),
+    dashboardHeader(title="Dashboard"),
     #Content of the Sidebar
     dashboardSidebar(
         sidebarMenu(
@@ -40,7 +48,7 @@ dashboardPage(
                     ),
                     fluidRow(
                         box(
-                            title = "Controls", width = 4, solidHeader = TRUE, status = "primary",
+                            title = "Controls", width = 5, solidHeader = TRUE, status = "primary",
                             fluidRow(
                                 column(width=6,
                                     selectInput(inputId = "n",
@@ -48,17 +56,26 @@ dashboardPage(
                                                 choices = c(150,500))
                                         ),
                                 column(width=6,
-                                       
                                     selectInput(inputId = "p",
                                                 label="Dimensions",
                                                 choices = c(1,2,5))
                                         ),
                             ),
-                            sliderInput(inputId = "gamma",
-                                        label = "Outlier percentage",
-                                        min=0.05,max=0.3,step=0.05,value=0.05),
+                            fluidRow(
+                                column(width=9,
+                                       sliderInput(inputId = "gamma",
+                                                   label = "Outlier percentage",
+                                                   min=0.05,max=0.3,step=0.05,value=0.05)
+                                       ),
+                                column(width=3,
+                                       br(),
+                                       br(),
+                                       checkboxInput(inputId = "error_bars",
+                                                     label= "Show error bars",
+                                                     value=FALSE))
+                            )
                         ),
-                        column(width=4),
+                        column(width=3),
                         box(
                             title = "Boxplot controls", width = 4, solidHeader = TRUE, status = "primary",
                             fluidRow(
@@ -68,7 +85,6 @@ dashboardPage(
                                                    choices = c("All",150,500))
                                 ),
                                 column(width=6,
-                                       
                                        selectInput(inputId = "p_box",
                                                    label="Dimensions",
                                                    choices = c("All",1,2,5))
@@ -94,7 +110,26 @@ dashboardPage(
             
             # Second tab content
             tabItem(tabName = "complexity",
-                    h2("Widgets tab content")
+                    fluidRow(
+                        box(
+                            title = "Controls", width = 2, solidHeader = TRUE,
+                            status = "primary",
+                            checkboxInput(inputId = "log_complexity",
+                                          label= "3rd root transform",
+                                          value=FALSE),
+                            checkboxInput(inputId = "complexity_fit",
+                                          label= "Show fit",
+                                          value=FALSE),
+                            checkboxInput(inputId = "complexity_asymptotic",
+                                          label= "Show asymptotic behavior",
+                                          value=FALSE)
+                            ),
+                        box(
+                            title="Complexity",
+                            width=10,
+                            plotlyOutput("plot_complexity")
+                        )
+                    )
             )
         )
     ),

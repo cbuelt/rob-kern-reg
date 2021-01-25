@@ -1,7 +1,7 @@
 #Load packages
 library(caret)
-library(mlbench)
-library(mvtnorm)
+#library(mlbench)
+#library(mvtnorm)
 library(kernlab)
 library(MASS)
 library(MLmetrics)
@@ -21,7 +21,7 @@ source("kgard_functions.R")
 
 
 #Data parameters
-n_seq<-seq(850,1000,50)
+n_seq<-c(seq(50,1000,50),seq(1200,2000,200),3000)
 p<-1
 gamma<-0.15
 lambda<-3.5
@@ -77,20 +77,24 @@ results<-data.frame(matrix(data=NA,ncol=8,nrow=length(n_seq),
                                                  "huber_krr","weighted_krr","KGARD"))))
 ###################Loop#####################
 for(n in n_seq){
-  #Generate data
-  #data<-generate_dataset(n = n, p = p, outlier_perc =  gamma, lambda = lambda, train_test_split = 1)
-  #training_data<-data[["training_data"]]
-  
+  #Determine number of repeats
+  if(n<=1000){
+    n_rep<-10
+    n_rep_kgard<-5
+  }else{
+    n_rep<-3
+    n_rep_kgard<-1
+  }
   #Use microbenchmark to measure performance
+  #First run for KRR, RKR, Huber
   res=microbenchmark(
     #Regular krr
-    #train(y ~ .,data=training_data,
-    #      method=krr_model,
-    #      trControl=train_fit,
-    #      metric="MAE",
-    #      maximize=FALSE,
-    #      tuneGrid=grid_krr),
-    print("abc"),
+    train(y ~ .,data=training_data,
+          method=krr_model,
+          trControl=train_fit,
+          metric="MAE",
+          maximize=FALSE,
+          tuneGrid=grid_krr),
     #Huber krr
     train(y ~ .,data=training_data,
           method=krr_huber_model,
@@ -98,40 +102,45 @@ for(n in n_seq){
           metric="MAE",
           maximize=FALSE,
           tuneGrid=grid_huber),
-    print("test2"),
     #Weighted krr
-    #train(y ~ .,data=training_data,
-    #      method=weighted_krr_model,
-     #     trControl=train_fit,
-      #    metric="MAE",
-       #   maximize=FALSE,
-        #  tuneGrid=grid_weighted),
-    #Kgard
-    #train(y ~ .,data=training_data,
-    #      method=kgard_model,
-    #      trControl=train_fit,
-    #      metric="MAE",
-    #      maximize=FALSE,
-    #      tuneGrid=grid_kgard),
-    print("test"),
-    times=3,
+    train(y ~ .,data=training_data,
+          method=weighted_krr_model,
+          trControl=train_fit,
+          metric="MAE",
+          maximize=FALSE,
+          tuneGrid=grid_weighted),
+    times=n_rep,
     unit="s",
-    setup = training_data<-generate_dataset(n = n, p = p, outlier_perc =  gamma, lambda = lambda, train_test_split = 1)[["training_data"]]
+    setup = training_data<-generate_dataset(n = n, p = p,
+                                            outlier_perc =  gamma, lambda = lambda,
+                                            train_test_split = 1)[["training_data"]]
+  )
+  print("Summary")
+  print(summary(res))
+  
+  #Use microbenchmark to measure performance
+  #Second run for KGARD, because it takes way longer
+  #so it gets repeated less times
+  res2=microbenchmark(
+    #Kgard
+    train(y ~ .,data=training_data,
+          method=kgard_model,
+          trControl=train_fit,
+          metric="MAE",
+          maximize=FALSE,
+          tuneGrid=grid_kgard),
+    times=n_rep_kgard,
+    unit="s",
+    setup = training_data<-generate_dataset(n = n, p = p,
+                                            outlier_perc =  gamma, lambda = lambda,
+                                            train_test_split = 1)[["training_data"]]
   )
   
-  
-  
-  results[cnt,]<-c(p,n,gamma,lambda,summary(res)$min)
+  #Save results in excel
+  results[cnt,]<-c(p,n,gamma,lambda,summary(res)$median,summary(res2)$median)
   write_xlsx(results,path="runtime_results.xlsx")
   cnt<-cnt+1
   
   #Tick for progress bar
   pb$tick()
 }
-results
-
-plot(results$n,log10(results$krr),ylim=c(log10(min(results[,-1:-4])),log10(max(summary(res)$median))))
-points(results$n,log10(results$KGARD),col="green")
-points(results$n,log10(results$huber_krr),col="blue")
-points(results$n,log10(results$weighted_krr),col="red")
-points(results$n,log10(results$KGARD),col="green")
