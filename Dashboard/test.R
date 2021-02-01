@@ -10,6 +10,13 @@ setwd(dirname(rstudioapi::getSourceEditorContext()$path))
 data<-read_excel("../data/simulation_results.xlsx")
 data_complexity<-read_excel("../data/complexity_results.xlsx")
 
+#Summary of results
+summary <- summary(data%>%
+                    select(`KRR-Mean`, `Huber-Mean`,`RKR-Mean`,`KGARD-Mean`))
+summary
+
+
+
 #Transform complexity
 data_c <- data_complexity %>%
   select(`KRR`, `Huber`,`RKR`,`KGARD`,`n`) %>%
