@@ -1,5 +1,5 @@
 #' This file includes all the functions corresponding to
-#' generating the data for the simulation
+#' generating the data for the simulation, as well as general functions
 #'
 #'
 #' Calculates the interval where data is generated,

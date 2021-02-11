@@ -1,18 +1,6 @@
-#Load packages
-library(caret)
-#library(mlbench)
-#library(mvtnorm)
-library(kernlab)
-library(MASS)
-library(MLmetrics)
-library(Matrix)
-library(plyr)
-library(listdtr)
-library(progress)
-library(microbenchmark)
-library(writexl)
 #Source functions
 setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+source("packages.R")
 source("functions.R")
 source("krr_functions.R")
 source("huber_krr_functions.R")
@@ -25,7 +13,6 @@ n_seq<-c(seq(50,1000,50),seq(1200,2000,200),3000)
 p<-1
 gamma<-0.15
 lambda<-3.5
-cnt<-1
 
 #Create progress bar
 pb <- progress_bar$new(
@@ -59,7 +46,7 @@ lambda_krr2<-c(0.25)
 grid_krr<-expand.grid("sigma"=sigma,"lambda"=lambda_krr)
 grid_weighted<-expand.grid("sigma"=sigma,"lambda"=lambda_krr2)
 
-#Create kgard grid
+#Create KGARD grid
 eps_kgard<-c(0.05)
 grid_kgard<-expand.grid("sigma"=sigma,"lambda"=lambda_krr2,"epsilon"=eps_kgard)
 
@@ -76,15 +63,11 @@ results<-data.frame(matrix(data=NA,ncol=8,nrow=length(n_seq),
                            dimnames=list(NULL, c("p","n","outlier_perc","outlier_shift","krr",
                                                  "huber_krr","weighted_krr","KGARD"))))
 ###################Loop#####################
+cnt<-1
 for(n in n_seq){
   #Determine number of repeats
-  if(n<=1000){
-    n_rep<-10
-    n_rep_kgard<-5
-  }else{
-    n_rep<-3
-    n_rep_kgard<-1
-  }
+  n_rep <- 10
+  n_rep_kgard <- 10
   #Use microbenchmark to measure performance
   #First run for KRR, RKR, Huber
   res=microbenchmark(
@@ -115,12 +98,9 @@ for(n in n_seq){
                                             outlier_perc =  gamma, lambda = lambda,
                                             train_test_split = 1)[["training_data"]]
   )
-  print("Summary")
-  print(summary(res))
-  
   #Use microbenchmark to measure performance
-  #Second run for KGARD, because it takes way longer
-  #so it gets repeated less times
+  #Second run for KGARD, because for high dimensions it takes really long so
+  #the number of repitions can be lowered individually
   res2=microbenchmark(
     #Kgard
     train(y ~ .,data=training_data,

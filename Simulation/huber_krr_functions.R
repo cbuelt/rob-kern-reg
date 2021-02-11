@@ -1,19 +1,34 @@
-#This file includes the functions for preparing the Regression model
-#with enhanced huber loss function
-
-#Global variable to save parameters
+#' This file includes the functions for preparing the KGARD model
+#' 
+#' 
+#' Global variable to save parameters
+#' Only used if the Huber loss metric is used for parameter tuning
 global_param<<-list("m"=10,"epsilon"=0)
-#Set method for global parameters
+
+#' Setter function for the global parameter
+#'
+#' @param m Term of Huber loss function
+#' @param epsilon Term of Huber loss function
 set_global_param<-function(m,epsilon){
   assign("global_param",list("m"=m,"epsilon"=epsilon),envir=.GlobalEnv)
 }
-#Get method for global parameters
+
+#' Getter function for the global parameter
+#'
+#' @return List global parameter
 get_global_param<-function(){
   return(global_param)
 }
 
 
-
+#' Function that creates the different groups, based on the value of the
+#' Huber loss function
+#'
+#' @param u Residual
+#' @param m Term of Huber loss function
+#' @param epsilon Term of Huber loss function
+#'
+#' @return Group corresponding to the specific residual
 huber_group_func<-function(u,m,eps){
   x1<-u-eps
   x2<-u+eps
@@ -26,6 +41,13 @@ huber_group_func<-function(u,m,eps){
 }
 
 
+#' Function that creates the value for the Huber loss function
+#'
+#' @param u Residual
+#' @param m Term of Huber loss function
+#' @param epsilon Term of Huber loss function
+#'
+#' @return Value of the Huber loss
 huber_value_func<-function(u,m,eps){
   x1<-u-eps
   x2<-u+eps
@@ -37,7 +59,15 @@ huber_value_func<-function(u,m,eps){
   return(res)
 }
 
-#Custom huber-epsilon loss metric
+
+#' Custom Huber loss metric that can be used for parameter tuning 
+#' inside the caret package
+#'
+#' @param data Contains observations and predictions
+#' @param lev Skeleton for the caret package
+#' @param model Skeleton for the caret package
+#'
+#' @return Huber loss and MAE
 huber_loss_metric<-function(data, lev=NULL,model=NULL){
   parameters<-get_global_param()
   m<-parameters$m
@@ -53,9 +83,9 @@ huber_loss_metric<-function(data, lev=NULL,model=NULL){
 }
 
 
-#Create the whole Huber regression model
-#Includes function for fitting, predicting and grid tuning
-#Returns a model which can be used by the caret package
+#' Returns the Huber model in a caret model format
+#'
+#' @return List of model parameters
 get_huber_krr_model<-function(){
   
   #Create Dataframe with parameters
@@ -63,8 +93,14 @@ get_huber_krr_model<-function(){
                          class=rep("numeric",4),
                          label=c("Sigma","Regularization","Linearization","Noise regulation"))
   
-  
-  #Create grid for parametertuning
+    #' Create parameter grid for model
+  #'
+  #' @param x Features
+  #' @param y Target data
+  #' @param length Parameter not relevant
+  #' @param search Grid/random search
+  #'
+  #' @return Dataframe containing the parameter grid
   Grid <- function(x,y,length=NULL,search="grid"){
     if(search=="grid"){
       sigma<-c(0.1,0.5,2)
@@ -83,15 +119,27 @@ get_huber_krr_model<-function(){
     grid
   }
   
-  
-  #Method to fit model to data
+  #' Create fit function for model
+  #'
+  #' @param x Features
+  #' @param y Target data
+  #' @param wts 
+  #' @param param Parameters used for the training
+  #' Further parameters nor relevant, see caret documentation
+  #' @param lev 
+  #' @param last 
+  #' @param weights 
+  #' @param classProbs 
+  #' @param ... 
+  #'
+  #' @return Returns model parameters, the kernel function and the data used for training
   Fit <- function(x, y, wts, param, lev, last, weights, classProbs, ...){
     #Create kernel function
     rbf <- kernlab::rbfdot(sigma = param$sigma)
     #Create kernel matrix
     K<-kernlab::kernelMatrix(rbf,x)
     #Set boundaries for the algorithm
-    max_iter=50
+    max_iter=150
     eps=0.01
     #Prepare vectors and matrices to be used
     n<-dim(x)[1]
@@ -147,7 +195,6 @@ get_huber_krr_model<-function(){
         M_inv<-rbind(upper,lower)
       }
       
-      
       #Value g
       g<-1/(crossprod(rep(1,n),tcrossprod(M_inv,t(rep(1,n)))))
       
@@ -175,8 +222,6 @@ get_huber_krr_model<-function(){
       if((abs(delta_energy)<eps)&&(TRUE %in% group_intersect)){
         break
       }
-      #print(iter)
-      #print(delta_energy)
     }
 
     #Set global parameters
@@ -190,15 +235,22 @@ get_huber_krr_model<-function(){
   }
   
   
-  #Method to predict new data
+  #' Create predict function for model
+  #'
+  #' @param modelFit The fitted model
+  #' @param newdata The data that should be predicted
+  #' Irrelevant parameters (see caret documentation)
+  #' @param preProc 
+  #' @param submodels 
+  #'
+  #' @return Returns the predictions for the new data
   Predict <- function(modelFit, newdata, preProc = NULL, submodels = NULL){
     data_old<-as.matrix(modelFit$data)
     result<-kernlab::kernelMult(modelFit$Kernel,x=newdata,y=data_old,z=modelFit$a)+modelFit$offset
     result
   }
   
-  
-  #Modeling
+  #Create final model
   Model<- list(type="Regression",
                library=c("kernlab","MASS","Matrix","plyr"),
                loop= NULL,
@@ -209,5 +261,4 @@ get_huber_krr_model<-function(){
                predict=Predict)
   #Return Full Model
   return(Model)
-  
 }

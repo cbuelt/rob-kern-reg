@@ -5,6 +5,8 @@ library(tidyr)
 library(plotly)
 library(rgl)
 library(hrbrthemes)
+library(orca)
+library(processx)
 
 setwd(dirname(rstudioapi::getSourceEditorContext()$path))
 data<-read_excel("../data/simulation_results.xlsx")
@@ -23,11 +25,18 @@ data_c <- data_complexity %>%
   pivot_longer(., cols = c(`KRR`, `Huber`,`RKR`,`KGARD`),
                names_to = "method", values_to = "time")
 
-fig <- plot_ly(data = data_c, x = ~n, y = ~time, color = ~method)
-fig %>% layout(yaxis = list(title="Time [s]"),
-               xaxis = list(title="n"),
-               legend = list(x=0.05,y=1,title=list(text='<b> Methods </b>')),
+fig <- plot_ly(data = data_c, x = ~n, y = ~time, color = ~method, colors = "RdBu",
+               width=1024, height=480)
+fig <- fig %>% layout(yaxis = list(title="Time [s]",tickfont=list(size=14),
+                                   titlefont=list(size=18),range=list(0,120)),
+               xaxis = list(title="n",tickfont=list(size=14),titlefont=list(size=18),
+                            range=list(0,1020)),
+               legend = list(x=0.05,y=1,title=list(text='<b> Methods </b>'),font=list(size=16)),
                hovermode="compare")
+fig
+orca(fig,"complexity.pdf")
+
+
 
 #Predict fits
 data_fit<-select(data_complexity,c(n,KRR,Huber,RKR,KGARD))
@@ -75,41 +84,37 @@ if(gamma_input!="All"){
 }
 
 
-test <- filter(data, n == 150, p == 1, gamma == 0.05) %>% 
+test <- filter(data, n == 500, p == 5, gamma == 0.2) %>% 
   rename(`Huber`=`Huber-Mean`, `KRR` = `KRR-Mean`, `RKR`= `RKR-Mean`, `KGARD`=`KGARD-Mean`) %>%
   select(`KRR`, `Huber`,`RKR`,`KGARD`,`Shift`) %>%
   pivot_longer(., cols = c(`KRR`, `Huber`,`RKR`,`KGARD`),
                names_to = "method", values_to = "mean")
 test
 
-test_sd <- filter(data, n == 150, p == 1, gamma == 0.05) %>% 
-  rename(`Huber`=`Huber-SD`, `KRR` = `KRR-SD`, `RKR`= `RKR-SD`, `KGARD`=`KGARD-SD`) %>%
-  select(`KRR`, `Huber`,`RKR`,`KGARD`,`Shift`) %>%
-  pivot_longer(., cols = c(`KRR`, `Huber`,`RKR`,`KGARD`),
-               names_to = "method", values_to = "SD")
-test_sd
+test_sd <- filter(data, gamma <0.2) %>% 
+  rename(`Huber`=`Huber-Mean`, `KRR` = `KRR-Mean`, `RKR`= `RKR-Mean`, `KGARD`=`KGARD-Mean`) %>%
+  select(`KRR`, `Huber`,`RKR`,`KGARD`)
 
-test_merged <- test %>% full_join(test_sd, by = c("Shift","method"))
+len <- dim(test_sd)[1]
+dim(test_sd %>% filter(Huber < KRR))[1]/len
 
-#Line plot
-ggplot(data=test,aes(x=`Shift`,y=`Val`,group=`Var`))+
-  geom_line(aes(color=`Var`),size=.7)+
-  geom_point(aes(color=`Var`),size=1)+
-  xlim(2,4.5)+
-  xlab("Outlier shift")+
-  ylab("MSE")+
-  theme_minimal()+
-  scale_color_brewer(palette="Dark2")+
-  theme(legend.title=element_blank())
+
 
 
 #Funktionierender plot
+max <- max(test$mean)*1.1
 fig <- plot_ly(test, x = ~`Shift`, y = ~`mean`, color = ~`method`,
-               mode = "lines+markers")
-fig <- fig %>% layout(yaxis = list(title="MSE"), xaxis = list(title="Outlier shift"),
-                      legend = list(x=0.05,y=1,title=list(text='<b> Methods </b>')),
+               mode = "lines+markers",colors="RdBu")
+fig <- fig %>% layout(yaxis = list(title="MSE",titlefont=list(size=18),range=list(0,max),
+                                   tickfont=list(size=14)),
+                      xaxis = list(title="Outlier shift",titlefont=list(size=18),
+                                   tickfont=list(size=14)),
+                      legend = list(x=0.05,y=1,title=list(text='<b> Methods </b>'),
+                                    font=list(size=16)),
                       hovermode="compare")
 fig
+#orca(fig, "result_plot_6.pdf")
+
 
 #Plot mit error bars
 fig <- plot_ly(test_merged, x = ~`Shift`, y = ~`mean`, color = ~`method`,
@@ -167,20 +172,42 @@ fig
 
 data
 
-test2 <- data %>% select(`KRR-Mean`, `Huber-Mean`,`RKR-Mean`,`KGARD-Mean`) %>% pivot_longer(., cols = c(`KRR-Mean`, `Huber-Mean`,`RKR-Mean`,`KGARD-Mean`),
+test2 <- data %>% rename(`KRR` = `KRR-Mean`,
+                          Huber = `Huber-Mean`,
+                          RKR = `RKR-Mean`,
+                          KGARD = `KGARD-Mean`
+) %>%
+  filter(gamma == 0.1) %>% 
+  select(`KRR`, `Huber`,`RKR`,`KGARD`) %>%
+  pivot_longer(., cols = c(`KRR`, `Huber`,`RKR`,`KGARD`),
                                                        names_to = "Var", values_to = "Val")
 #Boxplot
 ggplot(test2, aes(x=Var, y=Val)) + geom_boxplot()
 
 fig <- plot_ly(test2, y =~Val , type = "box", color=~Var,
-               boxpoints="suspectedoutliers")
-fig <- fig %>% layout(yaxis = list(title="MSE"), legend = list(x=0.8,y=1,title=list(text='<b> Methods </b>')))
+               boxpoints="suspectedoutliers",colors="RdBu")
+fig <- fig %>% layout(yaxis = list(title="MSE",titlefont=list(size=18),tickfont=list(size=15)),
+                                   xaxis = list(tickfont=list(size=18)),showlegend=FALSE)
 fig
+#orca(fig, "boxplot_0.1.pdf")
+
+
 
 
 #Kde
-ggplot(test2, aes(Val, fill = Var, colour = Var)) +
-  geom_density(alpha = 0.1)
+c_scale <- RColorBrewer::brewer.pal(4, "RdBu")
+fig <- ggplot(test2, aes(Val, fill = Var, colour = Var))+
+  geom_density(outline.type="upper",
+               alpha=0.3)+
+  xlab("MSE")+ylab("Density")+
+  theme_bw()+
+  theme(legend.title=element_blank())
+withr::with_options(
+  list(ggplot2.discrete.fill = c_scale),
+  print(ggplotly(fig) %>% layout(legend = list(x=0.8, y=1)))
+)
+
+
 
 
 #threeD <- filter(data, n == 150, p == 1)

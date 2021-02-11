@@ -1,27 +1,11 @@
-#Load packages
-library(caret)
-library(mlbench)
-library(mvtnorm)
-library(kernlab)
-library(MASS)
-library(MLmetrics)
-library(Matrix)
-library(plyr)
-library(listdtr)
-library(progress)
-library(writexl)
-library(doParallel)
-
 #Source functions
 setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+source("packages.R")
 source("functions.R")
 source("krr_functions.R")
 
-#Get cpu cluster count
-n_cores <- detectCores() - 1  
-
-####################################################Simulation for mean shift ###############################
-
+#Get cpu cluster count for parallelization
+n_cores <- detectCores()
 
 #Create parameter grid for the whole simulation
 n<-c(150,500)
@@ -40,13 +24,13 @@ rownames(param_grid)<-NULL
 
 #Create KRR Model
 krr_model<-get_krr_model()
-krr_fit <- trainControl(method="repeatedcv", number=5, repeats = 2)
+#Cross validation with 5  folds and 2 repeats
+krr_fit <- trainControl(method="repeatedcv", number = 5, repeats = 2)
 
 #Create Sigma search grid
 sigma_krr<-c(seq(from = 0.05, to = 1, by = 0.05), seq(from = 1.4, to = 10, by = 0.4),
              seq(from = 11, to = 30, by = 1))
-#special grid
-sigma_krr<-c(seq(from = 0.01, to = 1, by = 0.03),seq(from = 1.25, to = 2.5, by = 0.25))
+#Value for lambda stays at 1
 lambda_krr<-c(1)
 grid_krr<-expand.grid("sigma"=sigma_krr,"lambda"=lambda_krr)
 
@@ -62,10 +46,8 @@ pb <- progress_bar$new(
 results<-param_grid
 results$Sigma<-NA
 
-
-
-#Start loop
-for(x in 379:396){
+#Start loop over the whole parameter grid
+for(x in 1:dim(param_grid)[1]){
   #Get parameters of current run
   param_actual<-param_grid[x,]
   n <- as.numeric(param_actual["n-samples"])
@@ -73,8 +55,7 @@ for(x in 379:396){
   gamma <- as.numeric(param_actual["Outlier percentage"])
   lambda_out <- as.numeric(param_actual["Outlier shift"])
 
-  
-  #Parallelization
+  #Start parallelization
   cl <- makePSOCKcluster(n_cores)
   clusterEvalQ(cl, {
     library(kernlab)
@@ -82,11 +63,10 @@ for(x in 379:396){
   })
   registerDoParallel(cl)
   
-  #Perform simulation on each parameter tuple several times
+  #Repeat simulation on each parameter combination several times
   for (i in 1:number_simulations){
     #Create tick for progress bar
     pb$tick()
-    
     #Get train-test-data
     data<-generate_dataset(n,p,gamma,lambda_out)
     training_data<-data[["training_data"]]
@@ -115,11 +95,7 @@ for(x in 379:396){
   }else{
     sigma<-mode
   }
+  #Write final results to excel file
   results[x,]<-c(as.numeric(param_actual),sigma)
   write_xlsx(results,path="Sigma_results.xlsx")
 }
-
-
-
-
-
